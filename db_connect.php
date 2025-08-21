@@ -1,4 +1,3 @@
-
 <?php
 // Thông tin kết nối database Aiven
 $servername = "mysql-a2448e4-bachtuhoa20-0662.h.aivencloud.com";
@@ -16,9 +15,8 @@ if (!mysqli_real_connect($conn, $servername, $username, $password, $dbname, $por
     die();
 }
 
-// Thiết lập charset để hỗ trợ tiếng Việt
+
 mysqli_set_charset($conn, "utf8mb4");
 
 // Thiết lập múi giờ MySQL về giờ Việt Nam
 mysqli_query($conn, "SET time_zone = '+07:00'");
-?>
