@@ -1,6 +1,5 @@
 
-
-
+<?php
 // Thông tin kết nối database Aiven
 $servername = "mysql-a2448e4-bachtuhoa20-0662.h.aivencloud.com";
 $port       = 20704;
