@@ -1,6 +1,11 @@
 <?php
 // assign_review.php
 
+// Enhanced Error Handling
+ini_set('display_errors', 0); // Don't display errors directly to output
+error_reporting(E_ALL);
+ob_start(); // Start output buffering to catch all stray output
+
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: POST");
@@ -9,31 +14,63 @@ header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers
 
 include 'db_connect.php';
 
+function send_json_response($data) {
+    $stray_output = ob_get_clean(); // Clear buffer and get its content
+    if (!isset($data['status'])) {
+        $data['status'] = 'error'; // Default to error if status not set
+    }
+    if (!empty($stray_output) && !isset($data['stray_output'])) {
+        $data['stray_output'] = $stray_output;
+    }
+    if (!headers_sent()) {
+        header("Content-Type: application/json; charset=UTF-8");
+    }
+    echo json_encode($data);
+    exit();
+}
+
 // --- Function to get Access Token --- //
 function get_access_token($credentials_path) {
+    if (!function_exists('openssl_sign')) {
+        throw new Exception('OpenSSL extension is not enabled.');
+    }
+    if (!function_exists('curl_init')) {
+        throw new Exception('cURL extension is not enabled.');
+    }
     if (!file_exists($credentials_path)) {
-        return null;
+        throw new Exception('Firebase credentials file not found.');
     }
     $credentials = json_decode(file_get_contents($credentials_path), true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        throw new Exception('Invalid JSON in credentials file: ' . json_last_error_msg());
+    }
 
-    $header = base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT']));
-
-    $now = time();
-    $expiry = $now + 3600;
-
-    $payload = base64_encode(json_encode([
+    $jwt_header = ['alg' => 'RS256', 'typ' => 'JWT'];
+    $jwt_claim_set = [
         'iss' => $credentials['client_email'],
         'sub' => $credentials['client_email'],
         'aud' => 'https://oauth2.googleapis.com/token',
-        'iat' => $now,
-        'exp' => $expiry,
+        'iat' => time(),
+        'exp' => time() + 3500,
         'scope' => 'https://www.googleapis.com/auth/firebase.messaging'
-    ]));
+    ];
 
-    $signature_input = $header . '.' . $payload;
     $private_key = openssl_get_privatekey($credentials['private_key']);
-    openssl_sign($signature_input, $signature, $private_key, 'sha256');
-    $jwt = $signature_input . '.' . base64_encode($signature);
+    if ($private_key === false) {
+        throw new Exception('Could not get private key from credentials: ' . openssl_error_string());
+    }
+
+    $header_encoded = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode(json_encode($jwt_header)));
+    $payload_encoded = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode(json_encode($jwt_claim_set)));
+    $signature_input = $header_encoded . '.' . $payload_encoded;
+    
+    $signature = '';
+    if (!openssl_sign($signature_input, $signature, $private_key, 'sha256')) {
+        throw new Exception('Failed to sign the JWT: ' . openssl_error_string());
+    }
+    openssl_free_key($private_key);
+
+    $jwt = $signature_input . '.' . str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, 'https://oauth2.googleapis.com/token');
@@ -47,117 +84,107 @@ function get_access_token($credentials_path) {
 
     $result = curl_exec($ch);
     if (curl_errno($ch)) {
-        return null;
+        throw new Exception('cURL error when getting access token: ' . curl_error($ch));
     }
     curl_close($ch);
 
     $token_data = json_decode($result, true);
-    return $token_data['access_token'] ?? null;
+    if (!isset($token_data['access_token'])) {
+        throw new Exception('Failed to get access token from Google. Response: ' . $result);
+    }
+    return $token_data['access_token'];
 }
 
 // --- Main Logic --- //
+try {
+    $data = json_decode(file_get_contents("php://input"), true);
 
-$data = json_decode(file_get_contents("php://input"), true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        throw new Exception('Invalid JSON input.');
+    }
 
-// Validate input
-$admin_id = $data['admin_id'] ?? null;
-$student_id = $data['student_id'] ?? null;
-$unit_id = $data['unit_id'] ?? null;
-$number_of_words = $data['number_of_words'] ?? null;
-$time_per_word = $data['time_per_word'] ?? null;
-$review_sessions = $data['review_sessions'] ?? null;
-$review_mode = $data['review_mode'] ?? null;
+    $admin_id = $data['admin_id'] ?? null;
+    $student_id = $data['student_id'] ?? null;
+    $unit_id = $data['unit_id'] ?? null;
+    $number_of_words = $data['number_of_words'] ?? null;
+    $time_per_word = $data['time_per_word'] ?? null;
+    $review_sessions = $data['review_sessions'] ?? null;
+    $review_mode = $data['review_mode'] ?? null;
 
-if (!$admin_id || !$student_id || !$unit_id || !$number_of_words || !$time_per_word || !$review_sessions || !$review_mode) {
-    echo json_encode(['status' => 'error', 'message' => 'Dữ liệu đầu vào không hợp lệ.']);
-    exit();
-}
+    if (!$admin_id || !$student_id || !$unit_id || !$number_of_words || !$time_per_word || !$review_sessions || !$review_mode) {
+        throw new Exception('Dữ liệu đầu vào không hợp lệ.');
+    }
 
-// 1. Insert into review_assignments
-$stmt = $conn->prepare("INSERT INTO review_assignments (admin_id, student_id, unit_id, number_of_words, time_per_word, review_sessions, review_mode) VALUES (?, ?, ?, ?, ?, ?, ?)");
-$stmt->bind_param("iiiiiss", $admin_id, $student_id, $unit_id, $number_of_words, $time_per_word, $review_sessions, $review_mode);
-
-if (!$stmt->execute()) {
-    echo json_encode(['status' => 'error', 'message' => 'Lỗi khi tạo bài ôn tập: ' . $stmt->error]);
+    $stmt = $conn->prepare("INSERT INTO review_assignments (admin_id, student_id, unit_id, number_of_words, time_per_word, review_sessions, review_mode) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("iiiiiss", $admin_id, $student_id, $unit_id, $number_of_words, $time_per_word, $review_sessions, $review_mode);
+    if (!$stmt->execute()) {
+        throw new Exception('Lỗi khi tạo bài ôn tập: ' . $stmt->error);
+    }
+    $assignment_id = $stmt->insert_id;
     $stmt->close();
-    $conn->close();
-    exit();
-}
-$assignment_id = $stmt->insert_id;
-$stmt->close();
 
-// 2. Get student's FCM token
-$stmt = $conn->prepare("SELECT fcm_token FROM students WHERE student_id = ?");
-$stmt->bind_param("i", $student_id);
-$stmt->execute();
-$result = $stmt->get_result();
-if ($result->num_rows === 0) {
-    echo json_encode(['status' => 'error', 'message' => 'Không tìm thấy học sinh hoặc học sinh chưa có FCM token.']);
+    $stmt = $conn->prepare("SELECT fcm_token FROM students WHERE student_id = ?");
+    $stmt->bind_param("i", $student_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($result->num_rows === 0) {
+        throw new Exception('Không tìm thấy học sinh.');
+    }
+    $fcm_token = $result->fetch_assoc()['fcm_token'];
     $stmt->close();
-    $conn->close();
-    exit();
-}
-$fcm_token = $result->fetch_assoc()['fcm_token'];
-$stmt->close();
 
-if (!$fcm_token) {
-     echo json_encode(['status' => 'error', 'message' => 'Học sinh này chưa có FCM token để nhận thông báo.']);
-     $conn->close();
-     exit();
-}
+    if (empty($fcm_token)) {
+        throw new Exception('Học sinh này chưa có FCM token để nhận thông báo.');
+    }
 
-// 3. Send Push Notification via FCM v1
-$credentials_path = __DIR__ . '/firebase_credentials.json';
-$access_token = get_access_token($credentials_path);
+    $credentials_path = __DIR__ . '/firebase_credentials.json';
+    $access_token = get_access_token($credentials_path);
 
-if (!$access_token) {
-    echo json_encode(['status' => 'error', 'message' => 'Không thể lấy access token để gửi thông báo.']);
-    $conn->close();
-    exit();
-}
+    $credentials = json_decode(file_get_contents($credentials_path), true);
+    $project_id = $credentials['project_id'];
+    $fcm_url = "https://fcm.googleapis.com/v1/projects/{$project_id}/messages:send";
 
-$credentials = json_decode(file_get_contents($credentials_path), true);
-$project_id = $credentials['project_id'];
-$fcm_url = "https://fcm.googleapis.com/v1/projects/{$project_id}/messages:send";
-
-$notification_payload = [
-    'message' => [
-        'token' => $fcm_token,
-        'notification' => [
-            'title' => 'Bài ôn tập mới!',
-            'body' => 'Bạn vừa được giao một bài ôn tập từ vựng mới. Nhấn để bắt đầu ngay!'
-        ],
-        'data' => [
-            'type' => 'review_assignment',
-            'assignment_id' => strval($assignment_id)
+    $notification_payload = [
+        'message' => [
+            'token' => $fcm_token,
+            'notification' => [
+                'title' => 'Bài ôn tập mới!',
+                'body' => 'Bạn vừa được giao một bài ôn tập từ vựng mới. Nhấn để bắt đầu ngay!'
+            ],
+            'data' => [
+                'type' => 'review_assignment',
+                'assignment_id' => strval($assignment_id)
+            ]
         ]
-    ]
-];
+    ];
 
-$headers = [
-    'Authorization: Bearer ' . $access_token,
-    'Content-Type: application/json'
-];
+    $headers = ['Authorization: Bearer ' . $access_token, 'Content-Type: application/json'];
 
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $fcm_url);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($notification_payload));
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $fcm_url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($notification_payload));
 
-$fcm_result = curl_exec($ch);
-if (curl_errno($ch)) {
-    echo json_encode(['status' => 'warning', 'message' => 'Đã tạo bài ôn tập nhưng không thể gửi thông báo: ' . curl_error($ch)]);
-} else {
+    $fcm_result = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if (curl_errno($ch)) {
+        throw new Exception('Đã tạo bài ôn tập nhưng không thể gửi thông báo (cURL error): ' . curl_error($ch));
+    }
+    curl_close($ch);
+
     if ($http_code == 200) {
-        echo json_encode(['status' => 'success', 'message' => 'Bài ôn tập đã được giao và thông báo đã được gửi.']);
+        send_json_response(['status' => 'success', 'message' => 'Bài ôn tập đã được giao và thông báo đã được gửi.']);
     } else {
-         echo json_encode(['status' => 'warning', 'message' => 'Đã tạo bài ôn tập nhưng có lỗi khi gửi thông báo.', 'fcm_response' => json_decode($fcm_result)]);
+        throw new Exception('Đã tạo bài ôn tập nhưng có lỗi khi gửi thông báo. FCM Response: ' . $fcm_result);
+    }
+
+} catch (Exception $e) {
+    send_json_response(['status' => 'error', 'message' => $e->getMessage()]);
+} finally {
+    if (isset($conn) && $conn instanceof mysqli) {
+        $conn->close();
     }
 }
-curl_close($ch);
-
-$conn->close();
 ?>
