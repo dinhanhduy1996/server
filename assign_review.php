@@ -56,8 +56,8 @@ function get_access_token($credentials_path) {
     ];
 
     // FIX: Replace escaped newlines in the private key
-    $private_key_string = str_replace('\n', "\n", $credentials['private_key']);
-    $private_key = openssl_get_privatekey($private_key_string);
+    $private_key_string = str_replace("\\n", "\n", $credentials['private_key']);
+    $private_key = openssl_pkey_get_private($private_key_string);
 
     if ($private_key === false) {
         throw new Exception('Could not get private key from credentials: ' . openssl_error_string());
