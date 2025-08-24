@@ -1,5 +1,5 @@
 <?php
-// assign_review.php (FINAL VERSION 4 - Environment Variable)
+// assign_review.php (FINAL VERSION 5 - RSA Key Header Fix)
 
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
@@ -29,7 +29,6 @@ function send_json_response($data) {
 }
 
 function get_access_token() {
-    // Get credentials from Environment Variable
     $base64_credentials = getenv('BASE64_ENCODED_SERVICE_ACCOUNT');
     if (empty($base64_credentials)) {
         throw new Exception('Environment variable BASE64_ENCODED_SERVICE_ACCOUNT is not set.');
@@ -41,16 +40,17 @@ function get_access_token() {
         throw new Exception('Failed to decode or parse credentials from environment variable.');
     }
 
-    // Robust Private Key Formatting
-    $key_string_from_json = $credentials['private_key'];
-    $key_body = str_replace('-----BEGIN PRIVATE KEY-----', '', $key_string_from_json);
-    $key_body = str_replace('-----END PRIVATE KEY-----', '', $key_body);
-    $key_body = preg_replace('/\\s+/', '', $key_body);
-    $pem = "-----BEGIN PRIVATE KEY-----\\n" . chunk_split($key_body, 64, "\\n") . "-----END PRIVATE KEY-----\\n";
+    // --- FIX: Convert PKCS#8 key to PKCS#1 (RSA) format for compatibility ---
+    $private_key_pkcs8 = $credentials['private_key'];
+    $private_key_pkcs1 = str_replace(
+        ['-----BEGIN PRIVATE KEY-----', '-----END PRIVATE KEY-----'],
+        ['-----BEGIN RSA PRIVATE KEY-----', '-----END RSA PRIVATE KEY-----'],
+        $private_key_pkcs8
+    );
 
-    $private_key = openssl_pkey_get_private($pem);
+    $private_key = openssl_pkey_get_private($private_key_pkcs1);
     if ($private_key === false) {
-        throw new Exception('Could not get private key from credentials. OpenSSL Error: ' . openssl_error_string());
+        throw new Exception('Could not get private key even after formatting. OpenSSL Error: ' . openssl_error_string());
     }
 
     $jwt_header = ['alg' => 'RS256', 'typ' => 'JWT'];
