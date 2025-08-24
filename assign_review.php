@@ -1,5 +1,5 @@
 <?php
-// assign_review.php (FINAL VERSION 2)
+// assign_review.php (FINAL VERSION 3 - Simplified Key Parsing)
 
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
@@ -37,13 +37,10 @@ function get_access_token($credentials_path) {
         throw new Exception('Invalid JSON in credentials file: ' . json_last_error_msg());
     }
 
-    $key_string_from_json = $credentials['private_key'];
-    $key_body = str_replace('-----BEGIN PRIVATE KEY-----', '', $key_string_from_json);
-    $key_body = str_replace('-----END PRIVATE KEY-----', '', $key_body);
-    $key_body = preg_replace('/\\s+/', '', $key_body);
-    $pem = "-----BEGIN PRIVATE KEY-----\\n" . chunk_split($key_body, 64, "\\n") . "-----END PRIVATE KEY-----\\n";
+    // Simplified Key Parsing
+    $private_key_string = $credentials['private_key'];
+    $private_key = openssl_pkey_get_private($private_key_string);
 
-    $private_key = openssl_pkey_get_private($pem);
     if ($private_key === false) {
         throw new Exception('Could not get private key. OpenSSL Error: ' . openssl_error_string());
     }
@@ -63,7 +60,6 @@ function get_access_token($credentials_path) {
     $signature_input = $header_encoded . '.' . $payload_encoded;
     
     $signature = '';
-    // FIX: Use the explicit constant for the signing algorithm
     if (!openssl_sign($signature_input, $signature, $private_key, OPENSSL_ALGO_SHA256)) {
         throw new Exception('Failed to sign the JWT: ' . openssl_error_string());
     }
