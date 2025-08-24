@@ -42,12 +42,11 @@ function get_access_token($credentials_path) {
     // Remove header, footer, and all newlines/whitespace
     $key_body = str_replace('-----BEGIN PRIVATE KEY-----', '', $key_string_from_json);
     $key_body = str_replace('-----END PRIVATE KEY-----', '', $key_body);
-    $key_body = preg_replace('/
-+/', '', $key_body);
+    $key_body = preg_replace('/\s+/', '', $key_body);
     // Rebuild the key in valid PEM format with 64-character line breaks
-    $pem = "-----BEGIN PRIVATE KEY-----\\n"
-         . chunk_split($key_body, 64, "\\n")
-         . "-----END PRIVATE KEY-----\\n";
+    $pem = "-----BEGIN PRIVATE KEY-----\n"
+         . chunk_split($key_body, 64, "\n")
+         . "-----END PRIVATE KEY-----\n";
 
     $private_key = openssl_pkey_get_private($pem);
     if ($private_key === false) {
@@ -96,7 +95,7 @@ function get_access_token($credentials_path) {
     return $token_data['access_token'];
 }
 
-// --- Main Logic ---
+// --- Main Logic --- //
 try {
     $data = json_decode(file_get_contents("php://input"), true);
     if (json_last_error() !== JSON_ERROR_NONE) {
