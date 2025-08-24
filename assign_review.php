@@ -1,5 +1,5 @@
 <?php
-// assign_review.php (FINAL VERSION 3 - Simplified Key Parsing)
+// assign_review.php (FINAL VERSION 4 - Environment Variable)
 
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
@@ -28,21 +28,29 @@ function send_json_response($data) {
     exit();
 }
 
-function get_access_token($credentials_path) {
-    if (!file_exists($credentials_path)) {
-        throw new Exception('Firebase credentials file not found.');
+function get_access_token() {
+    // Get credentials from Environment Variable
+    $base64_credentials = getenv('BASE64_ENCODED_SERVICE_ACCOUNT');
+    if (empty($base64_credentials)) {
+        throw new Exception('Environment variable BASE64_ENCODED_SERVICE_ACCOUNT is not set.');
     }
-    $credentials = json_decode(file_get_contents($credentials_path), true);
+
+    $credentials_json = base64_decode($base64_credentials);
+    $credentials = json_decode($credentials_json, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
-        throw new Exception('Invalid JSON in credentials file: ' . json_last_error_msg());
+        throw new Exception('Failed to decode or parse credentials from environment variable.');
     }
 
-    // Simplified Key Parsing
-    $private_key_string = $credentials['private_key'];
-    $private_key = openssl_pkey_get_private($private_key_string);
+    // Robust Private Key Formatting
+    $key_string_from_json = $credentials['private_key'];
+    $key_body = str_replace('-----BEGIN PRIVATE KEY-----', '', $key_string_from_json);
+    $key_body = str_replace('-----END PRIVATE KEY-----', '', $key_body);
+    $key_body = preg_replace('/\\s+/', '', $key_body);
+    $pem = "-----BEGIN PRIVATE KEY-----\\n" . chunk_split($key_body, 64, "\\n") . "-----END PRIVATE KEY-----\\n";
 
+    $private_key = openssl_pkey_get_private($pem);
     if ($private_key === false) {
-        throw new Exception('Could not get private key. OpenSSL Error: ' . openssl_error_string());
+        throw new Exception('Could not get private key from credentials. OpenSSL Error: ' . openssl_error_string());
     }
 
     $jwt_header = ['alg' => 'RS256', 'typ' => 'JWT'];
@@ -128,12 +136,10 @@ try {
         throw new Exception('Học sinh này chưa có FCM token để nhận thông báo.');
     }
 
-    $credentials_path = __DIR__ . '/firebase_credentials.json';
-    $access_token = get_access_token($credentials_path);
+    $access_token = get_access_token();
 
-    $credentials = json_decode(file_get_contents($credentials_path), true);
-    $project_id = $credentials['project_id'];
-    $fcm_url = "https://fcm.googleapis.com/v1/projects/{$project_id}/messages:send";
+    $project_id_from_env = json_decode(base64_decode(getenv('BASE64_ENCODED_SERVICE_ACCOUNT')), true)['project_id'];
+    $fcm_url = "https://fcm.googleapis.com/v1/projects/{$project_id_from_env}/messages:send";
 
     $notification_payload = [
         'message' => [
