@@ -12,7 +12,12 @@ include 'db_connect.php';
 $assignment_id = isset($_GET['assignment_id']) ? intval($_GET['assignment_id']) : 0;
 
 if ($assignment_id > 0) {
-    $stmt = $conn->prepare("SELECT * FROM review_assignments WHERE assignment_id = ?");
+    $stmt = $conn->prepare("
+        SELECT ra.*, u.unit_name 
+        FROM review_assignments ra
+        JOIN units u ON ra.unit_id = u.unit_id
+        WHERE ra.assignment_id = ?
+    ");
     $stmt->bind_param("i", $assignment_id);
     $stmt->execute();
     $result = $stmt->get_result();
