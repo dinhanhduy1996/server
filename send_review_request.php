@@ -37,7 +37,7 @@ if (!$student) {
     echo json_encode(['success' => false, 'message' => 'Student not found']);
     exit();
 }
-$student_id = $student['id'];
+    $student_id = $student['student_id'];
 $fcm_token = $student['fcm_token'];
 
 // 2. Lưu yêu cầu vào CSDL
