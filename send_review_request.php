@@ -1,4 +1,7 @@
 <?php
+ob_start(); // Bắt đầu bộ đệm đầu ra
+error_reporting(0); // Tắt hiển thị lỗi
+ini_set('display_errors', 0); // Tắt hiển thị lỗi
 header('Content-Type: application/json');
 require 'db_connect.php'; // Sử dụng file kết nối CSDL của bạn
 
@@ -16,6 +19,7 @@ $review_mode = $data['review_mode'] ?? null;
 
 if (!$admin_id || !$student_username) {
     http_response_code(400);
+    ob_clean(); // Xóa bộ đệm trước khi xuất JSON
     echo json_encode(['success' => false, 'message' => 'Admin ID and Student Username are required']);
     exit();
 }
@@ -29,6 +33,7 @@ $student = $result->fetch_assoc();
 
 if (!$student) {
     http_response_code(404);
+    ob_clean(); // Xóa bộ đệm trước khi xuất JSON
     echo json_encode(['success' => false, 'message' => 'Student not found']);
     exit();
 }
@@ -71,9 +76,11 @@ if ($stmt->execute()) {
         curl_close($ch);
     }
 
+    ob_clean(); // Xóa bộ đệm trước khi xuất JSON
     echo json_encode(['success' => true, 'message' => 'Review request sent successfully.', 'assignment_id' => $assignment_id]);
 } else {
     http_response_code(500);
+    ob_clean(); // Xóa bộ đệm trước khi xuất JSON
     echo json_encode(['success' => false, 'message' => 'Failed to save review assignment.']);
 }
 
