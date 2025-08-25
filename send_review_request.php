@@ -1,7 +1,7 @@
 <?php
 ob_start(); // Bắt đầu bộ đệm đầu ra
-error_reporting(0); // Tắt hiển thị lỗi
-ini_set('display_errors', 0); // Tắt hiển thị lỗi
+// error_reporting(0); // Tắt hiển thị lỗi
+// ini_set('display_errors', 0); // Tắt hiển thị lỗi
 header('Content-Type: application/json');
 require 'db_connect.php'; // Sử dụng file kết nối CSDL của bạn
 
