@@ -53,14 +53,18 @@ try {
     }
 
     // Step 3: Call the Node.js microservice to send the notification
+    // Ensure all data values are strings, as required by FCM
+    $fcm_data_payload = [
+        'type' => 'review_assignment',
+        'assignment_id' => strval($assignment_id),
+        'target_student_id' => strval($student_id) // Ensure this is a string
+    ];
+
     $post_data = json_encode([
         'token' => $fcm_token,
         'title' => 'Bài ôn tập mới!',
         'body' => 'Bạn vừa được giao một bài ôn tập từ vựng mới. Nhấn để bắt đầu ngay!',
-        'data' => [
-            'type' => 'review_assignment',
-            'assignment_id' => strval($assignment_id)
-        ]
+        'data' => $fcm_data_payload
     ]);
 
     $ch = curl_init(FCM_SENDER_URL);
