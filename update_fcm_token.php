@@ -7,10 +7,10 @@ require 'db_connect.php';
 $json_data = file_get_contents('php://input');
 $data = json_decode($json_data, true);
 
-$user_id = $data['student_id'] ?? null;
+$student_id = $data['student_id'] ?? null;
 $fcm_token = $data['fcm_token'] ?? null;
 
-if (!$user_id || !$fcm_token) {
+if (!$student_id || !$fcm_token) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'User ID and FCM Token are required']);
     exit();
