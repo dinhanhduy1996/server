@@ -7,7 +7,7 @@ require 'db_connect.php';
 $json_data = file_get_contents('php://input');
 $data = json_decode($json_data, true);
 
-$user_id = $data['user_id'] ?? null;
+$user_id = $data['student_id'] ?? null;
 $fcm_token = $data['fcm_token'] ?? null;
 
 if (!$user_id || !$fcm_token) {
@@ -17,7 +17,7 @@ if (!$user_id || !$fcm_token) {
 }
 
     $stmt = $conn->prepare("UPDATE students SET fcm_token = ? WHERE student_id = ?");
-$stmt->bind_param("si", $fcm_token, $user_id);
+$stmt->bind_param("si", $fcm_token, $student_id);
 
 if ($stmt->execute()) {
     echo json_encode(['success' => true, 'message' => 'FCM token updated successfully.']);
