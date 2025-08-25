@@ -1,7 +1,7 @@
 <?php
 ob_start(); // Bắt đầu bộ đệm đầu ra
-// error_reporting(0); // Tắt hiển thị lỗi
-// ini_set('display_errors', 0); // Tắt hiển thị lỗi
+error_reporting(0); // Tắt hiển thị lỗi
+ini_set('display_errors', 0); // Tắt hiển thị lỗi
 header('Content-Type: application/json');
 require 'db_connect.php'; // Sử dụng file kết nối CSDL của bạn
 
@@ -25,7 +25,7 @@ if (!$admin_id || !$student_username) {
 }
 
 // 1. Lấy thông tin student, bao gồm cả fcm_token
-$stmt = $conn->prepare("SELECT id, fcm_token FROM users WHERE username = ?");
+    $stmt = $conn->prepare("SELECT id, fcm_token FROM students WHERE username = ?");
 $stmt->bind_param("s", $student_username);
 $stmt->execute();
 $result = $stmt->get_result();
