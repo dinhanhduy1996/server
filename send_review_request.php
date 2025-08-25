@@ -25,7 +25,7 @@ if (!$admin_id || !$student_username) {
 }
 
 // 1. Lấy thông tin student, bao gồm cả fcm_token
-    $stmt = $conn->prepare("SELECT id, fcm_token FROM students WHERE username = ?");
+    $stmt = $conn->prepare("SELECT student_id, fcm_token FROM students WHERE username = ?");
 $stmt->bind_param("s", $student_username);
 $stmt->execute();
 $result = $stmt->get_result();
