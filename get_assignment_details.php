@@ -24,13 +24,19 @@ if ($assignment_id > 0) {
 
     if ($result->num_rows > 0) {
         $assignment_details = $result->fetch_assoc();
-        echo json_encode(['status' => 'success', 'data' => $assignment_details]);
+        $json_response = json_encode(['status' => 'success', 'data' => $assignment_details]);
+        error_log("DEBUG PHP: get_assignment_details.php response: " . $json_response);
+        echo $json_response;
     } else {
-        echo json_encode(['status' => 'error', 'message' => 'Không tìm thấy bài ôn tập.']);
+        $json_response = json_encode(['status' => 'error', 'message' => 'Không tìm thấy bài ôn tập.']);
+        error_log("DEBUG PHP: get_assignment_details.php response: " . $json_response);
+        echo $json_response;
     }
     $stmt->close();
 } else {
-    echo json_encode(['status' => 'error', 'message' => 'Thiếu assignment_id.']);
+    $json_response = json_encode(['status' => 'error', 'message' => 'Thiếu assignment_id.']);
+    error_log("DEBUG PHP: get_assignment_details.php response: " . $json_response);
+    echo $json_response;
 }
 
 $conn->close();
