@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL); // Bật tất cả các lỗi
+ini_set('display_errors', 1); // Hiển thị lỗi trên màn hình
 header('Content-Type: application/json');
 require 'db_connect.php';
 
@@ -14,7 +16,7 @@ if (!$user_id || !$fcm_token) {
     exit();
 }
 
-$stmt = $conn->prepare("UPDATE users SET fcm_token = ? WHERE id = ?");
+    $stmt = $conn->prepare("UPDATE students SET fcm_token = ? WHERE student_id = ?");
 $stmt->bind_param("si", $fcm_token, $user_id);
 
 if ($stmt->execute()) {
